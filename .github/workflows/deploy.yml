@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
 
 env:
-  AWS_REGION: us-east-1                       # Your AWS region
+  AWS_REGION: us-east-2                       # Your AWS region
   ECR_REPOSITORY: learning-plan-mcp           # Your ECR repository name
   ECS_SERVICE: learning-plan-service          # Your ECS service name
   ECS_CLUSTER: learning-plan-cluster          # Your ECS cluster name
