@@ -5,7 +5,7 @@ import uuid
 from pydantic import BaseModel, Field, model_validator
 from icalendar import Calendar, Event
 
-from app import mcp
+from mcp_instance import mcp
 
 _DAY_FIELD_DESC = (
     "Availability window as [start, end] in 'HH:MM:SS' format (e.g. ['09:00:00', '17:00:00']). "
