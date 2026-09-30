@@ -1,4 +1,4 @@
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict, Any
 from datetime import time, datetime, timedelta, date
 import base64
 import uuid
@@ -25,7 +25,6 @@ class Schedule(BaseModel):
     @model_validator(mode='after')
     def check_end_after_start(self):
         errors = []
-
         for name in self.__class__.model_fields:
             value = getattr(self, name)
             if value is not None and value[0] >= value[1]:
@@ -35,11 +34,9 @@ class Schedule(BaseModel):
             raise ValueError(
                 f"Start time must be before end time. Affected days: {errors}"
             )
-
         return self
 
 
-# Maps Python weekday() integer (Mon=0 … Sun=6) to Schedule field name
 _WEEKDAY_FIELD = [
     "monday", "tuesday", "wednesday", "thursday",
     "friday", "saturday", "sunday",
@@ -48,36 +45,33 @@ _WEEKDAY_FIELD = [
 
 @mcp.tool()
 def create_learning_plan(
-    user_schedule: Schedule,
-    date_to_achieve: datetime,
+    user_schedule: Dict[str, Any],
+    date_to_achieve: str,
     est_course_hours: float,
     course_name: str = "Learning Plan",
 ) -> dict:
+    """Generate an ICS calendar file that schedules study sessions for a course.
+
+    The tool distributes total estimated course hours across available weekly time slots
+    until the target date. Returns a base64-encoded ICS file.
+
+    Args:
+        user_schedule: Dict with weekday names as keys ('monday'..'sunday') and
+            [start_time, end_time] string tuples in 'HH:MM:SS' format as values.
+        date_to_achieve: Deadline in YYYY-MM-DD format (e.g., '2026-10-15').
+        est_course_hours: Total hours required to finish the course.
+        course_name: Display name for the calendar event.
     """
-    Generate an ICS calendar file that schedules study sessions for a course.
+    # Parse schedule dictionary into Pydantic model inside function body
+    parsed_schedule = Schedule.model_validate(user_schedule)
 
-    The tool distributes the total estimated course hours across the user's
-    available weekly time slots, starting from today until the target date.
-    Each study session is created as a timed calendar event using the schedule
-    windows provided.
+    # Parse date_to_achieve string into a date object
+    if isinstance(date_to_achieve, str):
+        deadline = datetime.strptime(date_to_achieve, "%Y-%m-%d").date()
+    else:
+        deadline = date_to_achieve.date() if isinstance(date_to_achieve, datetime) else date_to_achieve
 
-    The ICS file content is returned as a base64-encoded string so that it can
-    be transmitted over HTTP and decoded by the caller into a downloadable file.
-
-    :param user_schedule: Weekly availability. Each day is an optional
-        (start_time, end_time) tuple. Omit days when the user is unavailable.
-    :param date_to_achieve: The deadline by which the course should be finished.
-    :param est_course_hours: Total number of hours the course requires.
-    :param course_name: Display name used as the event title in the calendar.
-    :returns: A dict with keys:
-        - ``filename``: suggested filename for the download (e.g. "learning_plan.ics")
-        - ``content_type``: MIME type ("text/calendar")
-        - ``data_base64``: base64-encoded ICS file content
-        - ``sessions_scheduled``: number of calendar events created
-        - ``hours_scheduled``: total hours successfully scheduled
-    """
     today = date.today()
-    deadline = date_to_achieve.date() if isinstance(date_to_achieve, datetime) else date_to_achieve
 
     # --- Pre-flight validation ---
     if deadline <= today:
@@ -85,11 +79,10 @@ def create_learning_plan(
             f"date_to_achieve ({deadline}) must be in the future. Today is {today}."
         )
 
-    # Calculate total available hours between today and the deadline
     available_hours = 0.0
     scan_day = today
     while scan_day <= deadline:
-        slot = getattr(user_schedule, _WEEKDAY_FIELD[scan_day.weekday()])
+        slot = getattr(parsed_schedule, _WEEKDAY_FIELD[scan_day.weekday()])
         if slot is not None:
             slot_hours = (
                 datetime.combine(scan_day, slot[1]) - datetime.combine(scan_day, slot[0])
@@ -99,19 +92,17 @@ def create_learning_plan(
 
     if available_hours == 0:
         raise ValueError(
-            "No available study slots found between today and the deadline. "
-            "Please set at least one day in user_schedule."
+            "No available study slots found between today and the deadline."
         )
 
     if available_hours < est_course_hours:
         raise ValueError(
             f"Not enough time to complete the course. "
-            f"The schedule provides {available_hours:.1f}h before {deadline}, "
-            f"but the course requires {est_course_hours:.1f}h. "
-            f"Consider extending the deadline or adding more study days."
+            f"Schedule provides {available_hours:.1f}h before {deadline}, "
+            f"but the course requires {est_course_hours:.1f}h."
         )
-    # --- End pre-flight ---
 
+    # --- Generate Calendar ---
     remaining_hours = est_course_hours
     sessions = 0
     hours_scheduled = 0.0
@@ -125,7 +116,7 @@ def create_learning_plan(
     current_day = today
     while current_day <= deadline and remaining_hours > 0:
         field_name = _WEEKDAY_FIELD[current_day.weekday()]
-        slot = getattr(user_schedule, field_name)
+        slot = getattr(parsed_schedule, field_name)
 
         if slot is not None:
             start_time, end_time = slot
@@ -134,7 +125,6 @@ def create_learning_plan(
             slot_end_dt = datetime.combine(current_day, end_time)
             slot_hours = (slot_end_dt - slot_start_dt).total_seconds() / 3600
 
-            # Cap the final session at the remaining hours needed
             session_hours = min(slot_hours, remaining_hours)
             if remaining_hours < slot_hours:
                 slot_end_dt = slot_start_dt + timedelta(hours=remaining_hours)
