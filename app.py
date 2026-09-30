@@ -19,5 +19,4 @@ mcp = FastMCP(
 import tools.create_learning_plan  # noqa: E402, F401
 
 if __name__ == "__main__":
-    # Bind to localhost only; use a reverse proxy (ALB / nginx) to expose publicly on AWS
-    mcp.run(transport="sse", host="127.0.0.1", port=8000)
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
