@@ -8,9 +8,10 @@ from icalendar import Calendar, Event
 
 from mcp_instance import mcp, S3_BUCKET
 
-# Initialised once at import time; on ECS the Task Role credentials are
-# picked up automatically from the container metadata endpoint.
-_s3 = boto3.client("s3")
+# On ECS, Task Role credentials are injected automatically.
+# Region must be explicit so presigned URLs are signed for the correct endpoint.
+_AWS_REGION = os.environ.get("AWS_REGION", "us-east-2")
+_s3 = boto3.client("s3", region_name=_AWS_REGION)
 
 _PRESIGNED_URL_TTL = 3600  # seconds — 1 hour
 
