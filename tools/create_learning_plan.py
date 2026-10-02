@@ -1,11 +1,18 @@
 from typing import Tuple, Optional, Dict, Any
 from datetime import time, datetime, timedelta, date
-import base64
+import os
 import uuid
+import boto3
 from pydantic import BaseModel, Field, model_validator
 from icalendar import Calendar, Event
 
-from mcp_instance import mcp
+from mcp_instance import mcp, S3_BUCKET
+
+# Initialised once at import time; on ECS the Task Role credentials are
+# picked up automatically from the container metadata endpoint.
+_s3 = boto3.client("s3")
+
+_PRESIGNED_URL_TTL = 3600  # seconds — 1 hour
 
 _DAY_FIELD_DESC = (
     "Availability window as [start, end] in 'HH:MM:SS' format (e.g. ['09:00:00', '17:00:00']). "
@@ -53,7 +60,8 @@ def create_learning_plan(
     """Generate an ICS calendar file that schedules study sessions for a course.
 
     The tool distributes total estimated course hours across available weekly time slots
-    until the target date. Returns a base64-encoded ICS file.
+    until the target date. Uploads the ICS file to S3 and returns a presigned download
+    URL that expires after 1 hour.
 
     Args:
         user_schedule: Dict with weekday names as keys ('monday'..'sunday') and
@@ -149,11 +157,27 @@ def create_learning_plan(
 
     ics_bytes = cal.to_ical()
     safe_name = course_name.lower().replace(" ", "_")
+    filename = f"{safe_name}.ics"
+    s3_key = f"learning-plans/{uuid.uuid4()}/{filename}"
+
+    _s3.put_object(
+        Bucket=S3_BUCKET,
+        Key=s3_key,
+        Body=ics_bytes,
+        ContentType="text/calendar",
+        ContentDisposition=f'attachment; filename="{filename}"',
+    )
+
+    download_url = _s3.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": S3_BUCKET, "Key": s3_key},
+        ExpiresIn=_PRESIGNED_URL_TTL,
+    )
 
     return {
-        "filename": f"{safe_name}.ics",
-        "content_type": "text/calendar",
-        "data_base64": base64.b64encode(ics_bytes).decode("ascii"),
+        "download_url": download_url,
+        "filename": filename,
         "sessions_scheduled": sessions,
         "hours_scheduled": round(hours_scheduled, 2),
+        "expires_in_seconds": _PRESIGNED_URL_TTL,
     }

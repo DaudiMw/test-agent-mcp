@@ -70,20 +70,18 @@ Always use 24-hour time:
 ## After the tool returns
 
 The tool returns a dict with these keys:
+- `download_url`       — a presigned S3 URL to download the .ics file directly
 - `filename`           — suggested file name (e.g. "aws_solutions_architect.ics")
-- `content_type`       — always "text/calendar"
-- `data_base64`        — the ICS file encoded as base64
 - `sessions_scheduled` — number of study sessions created
 - `hours_scheduled`    — total hours scheduled
+- `expires_in_seconds` — how long the download link is valid (3600 = 1 hour)
 
 Tell the user:
 - How many sessions were created and the total hours scheduled.
-- That the calendar file is ready to download.
-- How to import it: File → Import in Google Calendar; drag-and-drop in
-  Outlook; double-click on macOS to open in Apple Calendar.
-
-Do NOT show the raw base64 string to the user. Your client application
-handles the download — just confirm it is ready.
+- Give them the `download_url` as a clickable link so they can download the file.
+- Mention the link expires in 1 hour.
+- How to import it once downloaded: File → Import in Google Calendar;
+  drag-and-drop in Outlook; double-click on macOS to open in Apple Calendar.
 
 ## If the tool raises an error
 

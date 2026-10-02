@@ -9,6 +9,13 @@ if not API_KEY:
         "Set it before starting the server."
     )
 
+S3_BUCKET = os.getenv("S3_BUCKET")
+if not S3_BUCKET:
+    raise RuntimeError(
+        "S3_BUCKET environment variable is not set. "
+        "Set it to the name of your S3 bucket before starting the server."
+    )
+
 mcp = FastMCP(
     name="learning-plan-server",
     auth=StaticTokenVerifier(tokens={API_KEY: {"client_id": "mcp-client"}})
