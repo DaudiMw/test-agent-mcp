@@ -69,19 +69,18 @@ Always use 24-hour time:
 
 ## After the tool returns
 
-The tool returns a dict with these keys:
-- `download_url`       — a presigned S3 URL to download the .ics file directly
-- `filename`           — suggested file name (e.g. "aws_solutions_architect.ics")
-- `sessions_scheduled` — number of study sessions created
-- `hours_scheduled`    — total hours scheduled
-- `expires_in_seconds` — how long the download link is valid (3600 = 1 hour)
+On success the tool returns the .ics file as an embedded resource with
+mime_type "text/calendar". The file content is in the resource's `text` field.
 
 Tell the user:
-- How many sessions were created and the total hours scheduled.
-- Give them the `download_url` as a clickable link so they can download the file.
-- Mention the link expires in 1 hour.
-- How to import it once downloaded: File → Import in Google Calendar;
-  drag-and-drop in Outlook; double-click on macOS to open in Apple Calendar.
+- That their learning plan is ready as a calendar file.
+- Instruct them to save the content as a file with a `.ics` extension
+  (e.g. "ai_fundamentals.ics").
+- How to import it: File → Import in Google Calendar; drag-and-drop in
+  Outlook; double-click on macOS to open in Apple Calendar.
+
+On error the tool returns `{"error": "..."}` — relay the message to the user
+and ask for corrected input.
 
 ## If the tool raises an error
 
