@@ -9,6 +9,13 @@ if not API_KEY:
         "Set it before starting the server."
     )
 
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+if not TAVILY_API_KEY:
+    raise RuntimeError(
+        "TAVILY_API_KEY environment variable is not set. "
+        "Set it before starting the server."
+    )
+
 mcp = FastMCP(
     name="learning-plan-server",
     auth=StaticTokenVerifier(tokens={API_KEY: {"client_id": "mcp-client"}})
